@@ -1,12 +1,52 @@
-[bits 16]           ; begin code in 16-bit real mode
-[org 0x7c00]        ; load code at address 0x7c00
-    mov ah, 0x0E    ; trigger BIOS teletype mode to print chars to screen
-    mov al, 'H'     ; load character H into address AL (last byte of accumulator)
-    int 0x10        ; call BIOS interrupt 0x10, prints char in AL
-    mov al, 'i'     
-    int 0x10        ; repeat above steps for character i
-    cli             ; clear interrupts
-    hlt             ; stop processor
+; bootloader.asm (512 bytes)
+[org 0x7C00]
+bits 16
 
-times 510 - ($ - $$) db 0 ; pad the rest of the file with zeros to reach required file size
-dw 0xAA55                 ; boot signature, tells BIOS that disk is bootable
+start:
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
+
+    mov si, msg
+    call print_string
+
+    mov ax, 0x1000
+    mov es, ax
+    xor bx, bx
+    call read_kernel
+    jc disk_fail
+    jmp 0x1000:0x0000
+
+disk_fail:
+    mov si, msg_err
+    call print_string
+    hlt
+
+print_string:
+    mov ah, 0x0E
+.print_loop:
+    lodsb
+    test al, al
+    jz .done
+    int 0x10
+    jmp .print_loop
+.done:
+    ret
+
+read_kernel:
+    mov ah, 0x02
+    mov al, 0x01
+    mov ch, 0
+    mov cl, 2
+    mov dh, 0
+    mov dl, 0x00
+    int 0x13
+    ret
+
+msg     db "bootloader starting...", 0
+msg_err db "disk error!", 0
+
+times 510-($-$$) db 0
+dw 0xAA55
